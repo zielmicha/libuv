@@ -27,12 +27,29 @@
 #include <string.h>
 #include <unistd.h>
 
-int uv_loop_init(uv_loop_t* loop) {
-  int err;
+int uv_loop_init_base(uv_loop_t* loop);
 
+#ifdef ENABLE_MTCP
+int uv_loop_init_mtcp(uv_loop_t* loop, int core) {
+  uv__signal_global_once_init();
+  memset(loop, 0, sizeof(*loop));
+
+  loop->mtcp_enabled = true;
+  loop->mtcp_ctx = mtcp_create_context(core);
+  return uv_loop_init_base(loop);
+}
+#endif
+
+int uv_loop_init(uv_loop_t* loop) {
   uv__signal_global_once_init();
 
   memset(loop, 0, sizeof(*loop));
+  return uv_loop_init_base(loop);
+}
+
+int uv_loop_init_base(uv_loop_t* loop) {
+  int err;
+
   heap_init((struct heap*) &loop->timer_heap);
   QUEUE_INIT(&loop->wq);
   QUEUE_INIT(&loop->active_reqs);

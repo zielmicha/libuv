@@ -77,16 +77,23 @@ static unsigned long read_cpufreq(unsigned int cpunum);
 int uv__platform_loop_init(uv_loop_t* loop) {
   int fd;
 
-  fd = uv__epoll_create1(UV__EPOLL_CLOEXEC);
+#ifdef ENABLE_MTCP
+  if (loop->mtcp_enabled) {
+    fd = mtcp_epoll_create(loop->mtcp_ctx, 256);
+  } else
+#endif
+  {
+    fd = uv__epoll_create1(UV__EPOLL_CLOEXEC);
 
-  /* epoll_create1() can fail either because it's not implemented (old kernel)
-   * or because it doesn't understand the EPOLL_CLOEXEC flag.
-   */
-  if (fd == -1 && (errno == ENOSYS || errno == EINVAL)) {
-    fd = uv__epoll_create(256);
+    /* epoll_create1() can fail either because it's not implemented (old kernel)
+     * or because it doesn't understand the EPOLL_CLOEXEC flag.
+     */
+    if (fd == -1 && (errno == ENOSYS || errno == EINVAL)) {
+      fd = uv__epoll_create(256);
 
-    if (fd != -1)
-      uv__cloexec(fd, 1);
+      if (fd != -1)
+        uv__cloexec(fd, 1);
+    }
   }
 
   loop->backend_fd = fd;
@@ -141,6 +148,9 @@ void uv__platform_invalidate_fd(uv_loop_t* loop, int fd) {
 
 
 int uv__io_check_fd(uv_loop_t* loop, int fd) {
+  if (MTCP_ENABLED(loop))
+    return true;
+
   struct uv__epoll_event e;
   int rc;
 
@@ -214,6 +224,20 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
     /* XXX Future optimization: do EPOLL_CTL_MOD lazily if we stop watching
      * events, skip the syscall and squelch the events after epoll_wait().
      */
+    #ifdef MTCP_ENABLED
+    if (loop->mtcp_enabled) {
+      if (mtcp_epoll_ctl(loop->mtcp_ctx, loop->backend_fd, op, w->fd, &e)) {
+        if (errno != EEXIST)
+          abort();
+
+        assert(op == UV__EPOLL_CTL_ADD);
+
+        /* We've reactivated a file descriptor that's been watched before. */
+        if (mtcp_epoll_ctl(loop->mtcp_ctx, loop->backend_fd, UV__EPOLL_CTL_MOD, w->fd, &e))
+          abort();
+      }
+    } else
+    #endif
     if (uv__epoll_ctl(loop->backend_fd, op, w->fd, &e)) {
       if (errno != EEXIST)
         abort();
@@ -247,10 +271,21 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
     if (sizeof(int32_t) == sizeof(long) && timeout >= max_safe_timeout)
       timeout = max_safe_timeout;
 
-    if (sigmask != 0 && no_epoll_pwait != 0)
+    if (sigmask != 0 && (no_epoll_pwait != 0 || MTCP_ENABLED(loop)))
       if (pthread_sigmask(SIG_BLOCK, &sigset, NULL))
         abort();
 
+#ifdef ENABLE_MTCP
+    if (loop->mtcp_enabled) {
+      fprintf(stderr, "mtcp_epoll_wait\n");
+      nfds = mtcp_epoll_wait(loop->mtcp_ctx,
+                             loop->backend_fd,
+                             events,
+                             ARRAY_SIZE(events),
+                             timeout);
+      fprintf(stderr, "mtcp_epoll_wait ready\n");
+    } else
+#endif
     if (no_epoll_wait != 0 || (sigmask != 0 && no_epoll_pwait == 0)) {
       nfds = uv__epoll_pwait(loop->backend_fd,
                              events,
@@ -332,7 +367,13 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
          * Ignore all errors because we may be racing with another thread
          * when the file descriptor is closed.
          */
-        uv__epoll_ctl(loop->backend_fd, UV__EPOLL_CTL_DEL, fd, pe);
+#ifdef ENABLE_MTCP
+        if (MTCP_ENABLED(loop)) {
+          mtcp_epoll_ctl(loop->mtcp_ctx, loop->backend_fd, UV__EPOLL_CTL_DEL, fd, pe);
+        } else
+#else
+          uv__epoll_ctl(loop->backend_fd, UV__EPOLL_CTL_DEL, fd, pe);
+#endif
         continue;
       }
 

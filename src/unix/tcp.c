@@ -37,10 +37,20 @@ static int maybe_new_socket(uv_tcp_t* handle, int domain, int flags) {
     return 0;
   }
 
-  err = uv__socket(domain, SOCK_STREAM, 0);
-  if (err < 0)
-    return err;
-  sockfd = err;
+#ifdef MTCP_ENABLED
+  if (handle->loop->mtcp_enabled) {
+    err = mtcp_socket(handle->loop->mtcp_ctx, domain, SOCK_STREAM, 0);
+    if (err < 0)
+      return err;
+    sockfd = err;
+  } else
+#endif
+  {
+    err = uv__socket(domain, SOCK_STREAM, 0);
+    if (err < 0)
+      return err;
+    sockfd = err;
+  }
 
   err = uv__stream_open((uv_stream_t*) handle, sockfd, flags);
   if (err) {
@@ -158,9 +168,14 @@ int uv__tcp_connect(uv_connect_t* req,
 
   handle->delayed_error = 0;
 
-  do
+  #ifdef ENABLE_MTCP
+  if (handle->loop->mtcp_enabled) {
+    r = mtcp_connect(handle->loop->mtcp_ctx, uv__stream_fd(handle), addr, addrlen);
+  } else
+  #endif
+  do {
     r = connect(uv__stream_fd(handle), addr, addrlen);
-  while (r == -1 && errno == EINTR);
+  } while (r == -1 && errno == EINTR);
 
   if (r == -1) {
     if (errno == EINPROGRESS)

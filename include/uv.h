@@ -49,6 +49,7 @@ extern "C" {
 #include "uv-version.h"
 #include <stddef.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #if defined(_MSC_VER) && _MSC_VER < 1600
 # include "stdint-msvc2008.h"
@@ -257,6 +258,7 @@ UV_EXTERN int uv_replace_allocator(uv_malloc_func malloc_func,
 
 UV_EXTERN uv_loop_t* uv_default_loop(void);
 UV_EXTERN int uv_loop_init(uv_loop_t* loop);
+UV_EXTERN int uv_loop_init_mtcp(uv_loop_t* loop, int core);
 UV_EXTERN int uv_loop_close(uv_loop_t* loop);
 /*
  * NOTE:

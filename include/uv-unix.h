@@ -206,6 +206,19 @@ typedef struct {
   char* errmsg;
 } uv_lib_t;
 
+#ifdef ENABLE_MTCP
+#include <mtcp_api.h>
+#include <mtcp_epoll.h>
+
+#define UV_MTCP_FIELDS \
+  bool mtcp_enabled;   \
+  mctx_t* mtcp_ctx;
+#define MTCP_ENABLED(loop) (loop)->mtcp_enabled
+#else
+#define UV_MTCP_FIELDS
+#define MTCP_ENABLED(loop) 0
+#endif
+
 #define UV_LOOP_PRIVATE_FIELDS                                                \
   unsigned long flags;                                                        \
   int backend_fd;                                                             \
@@ -235,6 +248,7 @@ typedef struct {
   uv__io_t signal_io_watcher;                                                 \
   uv_signal_t child_watcher;                                                  \
   int emfile_fd;                                                              \
+  UV_MTCP_FIELDS                                                              \
   UV_PLATFORM_LOOP_FIELDS                                                     \
 
 #define UV_REQ_TYPE_PRIVATE /* empty */

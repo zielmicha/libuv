@@ -391,29 +391,31 @@ int uv__stream_open(uv_stream_t* stream, int fd, int flags) {
   int enable;
 #endif
 
-  if (!(stream->io_watcher.fd == -1 || stream->io_watcher.fd == fd))
-    return -EBUSY;
+  if (!MTCP_ENABLED(stream->loop)) {
+    if (!(stream->io_watcher.fd == -1 || stream->io_watcher.fd == fd))
+      return -EBUSY;
 
-  assert(fd >= 0);
-  stream->flags |= flags;
+    assert(fd >= 0);
+    stream->flags |= flags;
 
-  if (stream->type == UV_TCP) {
-    if ((stream->flags & UV_TCP_NODELAY) && uv__tcp_nodelay(fd, 1))
-      return -errno;
+    if (stream->type == UV_TCP) {
+      if ((stream->flags & UV_TCP_NODELAY) && uv__tcp_nodelay(fd, 1))
+        return -errno;
 
-    /* TODO Use delay the user passed in. */
-    if ((stream->flags & UV_TCP_KEEPALIVE) && uv__tcp_keepalive(fd, 1, 60))
-      return -errno;
-  }
+      /* TODO Use delay the user passed in. */
+      if ((stream->flags & UV_TCP_KEEPALIVE) && uv__tcp_keepalive(fd, 1, 60))
+        return -errno;
+    }
 
 #if defined(__APPLE__)
-  enable = 1;
-  if (setsockopt(fd, SOL_SOCKET, SO_OOBINLINE, &enable, sizeof(enable)) &&
-      errno != ENOTSOCK &&
-      errno != EINVAL) {
-    return -errno;
-  }
+    enable = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_OOBINLINE, &enable, sizeof(enable)) &&
+        errno != ENOTSOCK &&
+        errno != EINVAL) {
+      return -errno;
+    }
 #endif
+  }
 
   stream->io_watcher.fd = fd;
 
@@ -1124,10 +1126,15 @@ static void uv__read(uv_stream_t* stream) {
     assert(uv__stream_fd(stream) >= 0);
 
     if (!is_ipc) {
-      do {
-        nread = read(uv__stream_fd(stream), buf.base, buf.len);
-      }
-      while (nread < 0 && errno == EINTR);
+#ifdef ENABLE_MTCP
+      if (stream->loop->mtcp_enabled) {
+        nread = mtcp_read(stream->loop->mtcp_ctx, uv__stream_fd(stream), buf.base, buf.len);
+      } else
+#endif
+        do {
+          nread = read(uv__stream_fd(stream), buf.base, buf.len);
+        }
+        while (nread < 0 && errno == EINTR);
     } else {
       /* ipc uses recvmsg */
       msg.msg_flags = 0;
