@@ -37,7 +37,7 @@ static int maybe_new_socket(uv_tcp_t* handle, int domain, int flags) {
     return 0;
   }
 
-#ifdef MTCP_ENABLED
+#ifdef ENABLE_MTCP
   if (handle->loop->mtcp_enabled) {
     err = mtcp_socket(handle->loop->mtcp_ctx, domain, SOCK_STREAM, 0);
     if (err < 0)

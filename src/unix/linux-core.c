@@ -224,7 +224,7 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
     /* XXX Future optimization: do EPOLL_CTL_MOD lazily if we stop watching
      * events, skip the syscall and squelch the events after epoll_wait().
      */
-    #ifdef MTCP_ENABLED
+    #ifdef ENABLE_MTCP
     if (loop->mtcp_enabled) {
       if (mtcp_epoll_ctl(loop->mtcp_ctx, loop->backend_fd, op, w->fd, &e)) {
         if (errno != EEXIST)
