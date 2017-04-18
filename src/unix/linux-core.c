@@ -277,7 +277,7 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
 
 #ifdef ENABLE_MTCP
     if (loop->mtcp_enabled) {
-      fprintf(stderr, "mtcp_epoll_wait\n");
+      fprintf(stderr, "mtcp_epoll_wait %d\n", (int)timeout);
       nfds = mtcp_epoll_wait(loop->mtcp_ctx,
                              loop->backend_fd,
                              events,

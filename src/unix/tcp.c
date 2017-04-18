@@ -43,6 +43,7 @@ static int maybe_new_socket(uv_tcp_t* handle, int domain, int flags) {
     if (err < 0)
       return err;
     sockfd = err;
+    mtcp_setsock_nonblock(handle->loop->mtcp_ctx, sockfd);
   } else
 #endif
   {
@@ -113,30 +114,39 @@ int uv__tcp_bind(uv_tcp_t* tcp,
   if (err)
     return err;
 
-  on = 1;
-  if (setsockopt(tcp->io_watcher.fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)))
-    return -errno;
-
-  if ((flags & UV_TCP_REUSEPORT) != 0) {
+  if (!MTCP_ENABLED(tcp->loop)) {
     on = 1;
-    if (setsockopt(tcp->io_watcher.fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on)))
+    if (setsockopt(tcp->io_watcher.fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)))
       return -errno;
-  }
+
+    if ((flags & UV_TCP_REUSEPORT) != 0) {
+      on = 1;
+      if (setsockopt(tcp->io_watcher.fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on)))
+        return -errno;
+    }
 
 #ifdef IPV6_V6ONLY
-  if (addr->sa_family == AF_INET6) {
-    on = (flags & UV_TCP_IPV6ONLY) != 0;
-    if (setsockopt(tcp->io_watcher.fd,
-                   IPPROTO_IPV6,
-                   IPV6_V6ONLY,
-                   &on,
-                   sizeof on) == -1) {
-      return -errno;
+    if (addr->sa_family == AF_INET6) {
+      on = (flags & UV_TCP_IPV6ONLY) != 0;
+      if (setsockopt(tcp->io_watcher.fd,
+                     IPPROTO_IPV6,
+                     IPV6_V6ONLY,
+                     &on,
+                     sizeof on) == -1) {
+        return -errno;
+      }
     }
-  }
 #endif
+  }
 
   errno = 0;
+  #ifdef ENABLE_MTCP
+  if (tcp->loop->mtcp_enabled) {
+    if (mtcp_bind(tcp->loop->mtcp_ctx, tcp->io_watcher.fd, addr, addrlen)) {
+      return -errno;
+    }
+  } else
+  #else
   if (bind(tcp->io_watcher.fd, addr, addrlen) && errno != EADDRINUSE) {
     if (errno == EAFNOSUPPORT)
       /* OSX, other BSDs and SunoS fail with EAFNOSUPPORT when binding a
@@ -144,6 +154,7 @@ int uv__tcp_bind(uv_tcp_t* tcp,
       return -EINVAL;
     return -errno;
   }
+  #endif
   tcp->delayed_error = -errno;
 
   if (addr->sa_family == AF_INET6)
@@ -176,7 +187,9 @@ int uv__tcp_connect(uv_connect_t* req,
 
   #ifdef ENABLE_MTCP
   if (handle->loop->mtcp_enabled) {
+    printf("mtcp_connect\n");
     r = mtcp_connect(handle->loop->mtcp_ctx, uv__stream_fd(handle), addr, addrlen);
+    printf("mtcp_connect end\n");
   } else
   #endif
   do {
@@ -238,8 +251,15 @@ int uv_tcp_getsockname(const uv_tcp_t* handle,
   /* sizeof(socklen_t) != sizeof(int) on some systems. */
   socklen = (socklen_t) *namelen;
 
-  if (getsockname(uv__stream_fd(handle), name, &socklen))
-    return -errno;
+  #ifdef ENABLE_MTCP
+  if (handle->loop->mtcp_enabled) {
+    if (mtcp_getsockname(handle->loop->mtcp_ctx, uv__stream_fd(handle), name, &socklen))
+      return -errno;
+  } else
+  #else
+    if (getsockname(uv__stream_fd(handle), name, &socklen))
+      return -errno;
+  #endif
 
   *namelen = (int) socklen;
   return 0;
@@ -287,8 +307,15 @@ int uv_tcp_listen(uv_tcp_t* tcp, int backlog, uv_connection_cb cb) {
   if (err)
     return err;
 
+  #ifdef ENABLE_MTCP
+  if (tcp->loop->mtcp_enabled) {
+    if (mtcp_listen(tcp->loop->mtcp_ctx, tcp->io_watcher.fd, backlog))
+      return -errno;
+  } else
+  #else
   if (listen(tcp->io_watcher.fd, backlog))
     return -errno;
+  #endif
 
   tcp->connection_cb = cb;
 
