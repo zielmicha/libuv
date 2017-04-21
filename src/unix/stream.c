@@ -824,6 +824,11 @@ start:
 #endif
   } else {
     do {
+      #ifdef ENABLE_MTCP
+      if (stream->loop->mtcp_enabled)
+        n = mtcp_writev(stream->loop->mtcp_ctx, uv__stream_fd(stream), iov, iovcnt);
+      else
+      #endif
       if (iovcnt == 1) {
         n = write(uv__stream_fd(stream), iov[0].iov_base, iov[0].iov_len);
       } else {

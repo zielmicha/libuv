@@ -187,7 +187,7 @@ int uv__tcp_connect(uv_connect_t* req,
 
   #ifdef ENABLE_MTCP
   if (handle->loop->mtcp_enabled) {
-    printf("mtcp_connect\n");
+    printf("mtcp_connect (fd=%d)\n", uv__stream_fd(handle));
     r = mtcp_connect(handle->loop->mtcp_ctx, uv__stream_fd(handle), addr, addrlen);
     printf("mtcp_connect end\n");
   } else

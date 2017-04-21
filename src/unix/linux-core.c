@@ -226,6 +226,7 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
      */
     #ifdef ENABLE_MTCP
     if (loop->mtcp_enabled) {
+      fprintf(stderr, "mtcp_epoll_ctl %d data: %d\n", w->fd, e.data);
       if (mtcp_epoll_ctl(loop->mtcp_ctx, loop->backend_fd, op, w->fd, &e)) {
         if (errno != EEXIST)
           abort();

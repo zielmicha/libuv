@@ -209,6 +209,9 @@ static void uv__signal_unregister_handler(int signum) {
 
 
 static int uv__signal_loop_once_init(uv_loop_t* loop) {
+  if (MTCP_ENABLED(loop))
+    return 0;
+
   int err;
 
   /* Return if already initialized. */
