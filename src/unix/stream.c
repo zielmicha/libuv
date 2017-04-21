@@ -530,7 +530,13 @@ void uv__server_io(uv_loop_t* loop, uv__io_t* w, unsigned int events) {
       return;
 #endif /* defined(UV_HAVE_KQUEUE) */
 
-    err = uv__accept(uv__stream_fd(stream));
+#ifdef ENABLE_MTCP
+    if (loop->mtcp_enabled) {
+      err = mtcp_accept(loop->mtcp_ctx, uv__stream_fd(stream), NULL, NULL);
+      if (err < 0) err = -errno;
+    } else
+#endif
+      err = uv__accept(uv__stream_fd(stream));
     if (err < 0) {
       if (err == -EAGAIN || err == -EWOULDBLOCK)
         return;  /* Not an error. */

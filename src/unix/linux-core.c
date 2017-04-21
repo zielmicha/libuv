@@ -372,9 +372,8 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
         if (MTCP_ENABLED(loop)) {
           mtcp_epoll_ctl(loop->mtcp_ctx, loop->backend_fd, UV__EPOLL_CTL_DEL, fd, pe);
         } else
-#else
-          uv__epoll_ctl(loop->backend_fd, UV__EPOLL_CTL_DEL, fd, pe);
 #endif
+          uv__epoll_ctl(loop->backend_fd, UV__EPOLL_CTL_DEL, fd, pe);
         continue;
       }
 
