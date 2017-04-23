@@ -814,8 +814,6 @@ void uv__io_start(uv_loop_t* loop, uv__io_t* w, unsigned int events) {
   assert(w->fd >= 0);
   assert(w->fd < INT_MAX);
 
-  assert(w->fd < 15); // temporary
-
   w->pevents |= events;
   maybe_resize(loop, w->fd + 1);
 
