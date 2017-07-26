@@ -271,8 +271,14 @@ uv_handle_type uv_guess_handle(uv_file file) {
   if (S_ISREG(s.st_mode))
     return UV_FILE;
 
-  if (S_ISCHR(s.st_mode))
-    return UV_NAMED_PIPE;
+  if (S_ISCHR(s.st_mode)) {
+    if (s.st_rdev == 2789) {
+      // /dev/fuse
+      return UV_NAMED_PIPE;
+    } else {
+      return UV_FILE;
+    }
+  }
 
   if (S_ISFIFO(s.st_mode))
     return UV_NAMED_PIPE;
