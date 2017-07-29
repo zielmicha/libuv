@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/ioctl.h>
 
 #if defined(__APPLE__) && !TARGET_OS_IPHONE
 # include <crt_externs.h>
@@ -374,6 +375,10 @@ static void uv__process_child_init(const uv_process_options_t* options,
 
   if (options->env != NULL) {
     environ = options->env;
+  }
+
+  if (options->flags & UV_PROCESS_DETACHED) {
+    ioctl(0, TIOCSCTTY, 0);
   }
 
   /* Reset signal disposition.  Use a hard-coded limit because NSIG
