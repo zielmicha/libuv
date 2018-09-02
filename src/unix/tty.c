@@ -196,8 +196,8 @@ skip:
 
   if (readable)
     flags |= UV_STREAM_READABLE;
-  else
-    flags |= UV_STREAM_WRITABLE;
+
+  flags |= UV_STREAM_WRITABLE;
 
   uv__stream_open((uv_stream_t*) tty, fd, flags);
   tty->mode = UV_TTY_MODE_NORMAL;
@@ -310,6 +310,9 @@ uv_handle_type uv_guess_handle(uv_file file) {
   if (S_ISCHR(s.st_mode)) {
     if (s.st_rdev == 2789) {
       // /dev/fuse
+      return UV_NAMED_PIPE;
+    } if (s.st_rdev == 2760) {
+      // /dev/net/tun
       return UV_NAMED_PIPE;
     } else {
       return UV_FILE;
